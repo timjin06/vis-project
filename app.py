@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(page_title="서울시 전동킥보드 견인 현황", layout="wide")
 
 DATA_PATH = Path(__file__).parent / "towing.csv"
-BAR_COLOR = "#2a6fdb"
+BAR_COLOR = "#1f7a4d"  # 크리스마스 초록
 
 
 @st.cache_data
@@ -62,7 +62,7 @@ f = df[
 ]
 
 # ---------------- 제목 + KPI ----------------
-st.title("서울시 전동킥보드 견인 현황")
+st.title("🎄🛴 서울시 전동킥보드 견인 현황")
 
 if f.empty:
     st.warning("선택한 조건에 해당하는 데이터가 없습니다. 필터를 조정해 주세요.")
@@ -118,7 +118,7 @@ else:
     # ② 연도별 겹쳐 그린 월별 선 (계절성·연도 간 비교)
     ym = f.groupby(["연도", "월번호"]).size().reset_index(name="건수")
     ym["연도"] = ym["연도"].astype(str)
-    year_colors = {"2021": "#8fa3ad", "2022": "#e0a030", "2023": "#2a9d8f", "2024": "#2a6fdb", "2025": "#d1495b"}
+    year_colors = {"2021": "#9aa8ad", "2022": "#d4a017", "2023": "#2e8b57", "2024": "#c0392b", "2025": "#1b5e8a"}
     fig4 = px.line(
         ym, x="월번호", y="건수", color="연도", markers=True,
         color_discrete_map=year_colors,
