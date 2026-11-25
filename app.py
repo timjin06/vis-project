@@ -6,7 +6,7 @@ import streamlit as st
 
 st.set_page_config(page_title="서울시 전동킥보드 견인 현황", layout="wide")
 
-DATA_PATH = Path(__file__).parent / "towing.csv"
+DATA_PATH = Path(__file__).parent / "data.csv"
 BAR_COLOR = "#1f7a4d"  # 초록
 
 
