@@ -70,7 +70,9 @@ else:
     by_gu = f["구"].value_counts()
     c1, c2, c3 = st.columns(3)
     c1.metric("총 견인 건수", f"{len(f):,}건")
-    c2.metric("평균 처리기간", f"{f['처리기간'].mean():.2f}일")
+    # 기록이 있는 달 수로 나눠, 반년치(2021)·누락 달(2023)이 있는 해도 비교하기 쉽게 함
+    n_months = f.groupby(["연도", "월번호"]).ngroups
+    c2.metric("월평균 견인 건수", f"{len(f) / n_months:,.0f}건", help="견인 건수 ÷ 기록이 있는 달 수")
     c3.metric("견인 1위 자치구", f"{by_gu.index[0]} ({by_gu.iloc[0]:,}건)")
 
     def kr(n):
