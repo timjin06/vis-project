@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(page_title="서울시 전동킥보드 견인 현황", layout="wide")
 
 DATA_PATH = Path(__file__).parent / "towing.csv"
-BAR_COLOR = "#1f7a4d"  # 크리스마스 초록
+BAR_COLOR = "#1f7a4d"  # 초록
 
 
 @st.cache_data
@@ -16,8 +16,8 @@ def load_data() -> pd.DataFrame:
     df["신고일시"] = pd.to_datetime(df["신고일시"])
     # 조치일에 "1900-01-00" 같은 잘못된 값이 있어 NaT로 처리
     df["조치일"] = pd.to_datetime(df["조치일"], errors="coerce")
-    # 구정보 컬럼은 깨져 있어 주소에서 재추출
-    df["구"] = df["주소"].str.extract(r"서울특별시\s+(\S+구)")
+    # 구정보 컬럼은 깨져 있어 주소에서 재추출 ('서울특별시'뿐 아니라 '서울시', '서울' 표기도 있음)
+    df["구"] = df["주소"].str.extract(r"서울\S*\s+(\S+구)")
     # 유형: 2024년 라벨 개편으로 같은 장소가 다른 이름으로 기록되어 있어 키워드로 통합
     # 우선순위가 낮은 것부터 덮어써서, 마지막에 쓴 것이 우선한다 (예: '횡단보도'는 '보도'보다 우선)
     df["유형정리"] = "기타"
@@ -118,16 +118,16 @@ else:
     # ② 연도별 겹쳐 그린 월별 선 (계절성·연도 간 비교)
     ym = f.groupby(["연도", "월번호"]).size().reset_index(name="건수")
     ym["연도"] = ym["연도"].astype(str)
+    ym["건수글자"] = ym["건수"].map(kr)
     year_colors = {"2021": "#9aa8ad", "2022": "#d4a017", "2023": "#2e8b57", "2024": "#c0392b", "2025": "#1b5e8a"}
     fig4 = px.line(
         ym, x="월번호", y="건수", color="연도", markers=True,
-        color_discrete_map=year_colors,
+        color_discrete_map=year_colors, custom_data=["건수글자"],
         title="② 연도별 월별 견인 비교 (같은 달끼리 겹쳐 보기)",
     )
     fig4.update_traces(
         line_width=2,
-        customdata=ym["건수"].map(kr),
-        hovertemplate="%{fullData.name}년 %{x}월<br>건수=%{customdata}건<extra></extra>",
+        hovertemplate="%{fullData.name}년 %{x}<br>건수=%{customdata[0]}건<extra></extra>",
     )
     fig4.update_xaxes(tickmode="array", tickvals=list(range(1, 13)), ticktext=[f"{m}월" for m in range(1, 13)])
     kr_axis(fig4, ym["건수"])
@@ -144,19 +144,47 @@ else:
     kr_axis(fig2, gu_cnt["size"])
     st.plotly_chart(style(fig2, "자치구", "견인 건수"), width="stretch")
 
-    # ④ 유형별
+    # ④ 유형별 (왼쪽: 유형별 막대, 오른쪽: 상위 3개 유형 비중 파이)
     t_cnt = f.groupby("유형정리", as_index=False).size().sort_values("size", ascending=False)
-    fig3 = px.bar(t_cnt, x="유형정리", y="size", title="④ 견인유형별 건수")
-    # 기타에 마우스를 올리면 무엇이 들어 있는지 괄호로 설명
     t_cnt["설명"] = t_cnt["유형정리"].map({"기타": " (원본의 '그 외 지역'·'기타', 자유서술 민원 문구 등)"}).fillna("")
     t_cnt["건수글자"] = t_cnt["size"].map(kr)
-    fig3.update_traces(
-        marker_color=BAR_COLOR,
-        customdata=t_cnt[["건수글자", "설명"]],
-        hovertemplate="%{x}%{customdata[1]}<br>건수=%{customdata[0]}건<extra></extra>",
-    )
-    kr_axis(fig3, t_cnt["size"])
-    st.plotly_chart(style(fig3, "견인유형", "견인 건수"), width="stretch")
+
+    top3 = t_cnt.head(3)
+    pie_names = top3["유형정리"].tolist()
+    pie_values = top3["size"].tolist()
+    if len(t_cnt) > 3:  # 3개보다 많이 골랐을 때만 '나머지' 조각
+        pie_names.append(f"나머지 {len(t_cnt) - 3}개 유형")
+        pie_values.append(t_cnt["size"].iloc[3:].sum())
+    pie_df = pd.DataFrame({"구분": pie_names, "건수": pie_values})
+    pie_df["건수글자"] = pie_df["건수"].map(kr)
+
+    left, right = st.columns([2, 1])
+    with left:
+        fig3 = px.bar(t_cnt, x="유형정리", y="size", title="④ 견인유형별 건수")
+        fig3.update_traces(
+            marker_color=BAR_COLOR,
+            customdata=t_cnt[["건수글자", "설명"]],
+            hovertemplate="%{x}%{customdata[1]}<br>건수=%{customdata[0]}건<extra></extra>",
+        )
+        kr_axis(fig3, t_cnt["size"])
+        st.plotly_chart(style(fig3, "견인유형", "견인 건수"), width="stretch")
+    with right:
+        fig_pie = px.pie(
+            pie_df, names="구분", values="건수", custom_data=["건수글자"],
+            title="④-1 상위 3개 유형 비중",
+            color_discrete_sequence=["#e41a1c", "#377eb8", "#4daf4a", "#bdbdbd"],
+        )
+        fig_pie.update_traces(
+            sort=False, textinfo="percent", textposition="inside",
+            hovertemplate="%{label}<br>건수=%{customdata[0]}건<br>비중=%{percent}<extra></extra>",
+        )
+        fig_pie.update_layout(
+            template="plotly_white",
+            font=dict(family="Malgun Gothic, Apple SD Gothic Neo, Noto Sans KR, sans-serif"),
+            margin=dict(t=50, b=40),
+            legend=dict(orientation="h", y=-0.1),
+        )
+        st.plotly_chart(fig_pie, width="stretch")
 
 # ---------------- 각주 ----------------
 st.divider()
